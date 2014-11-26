@@ -43,6 +43,8 @@ static char* ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     return NGX_CONF_OK;
 }
 
+/*
+// 发送内存中的数据
 static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
     if (!(r->method & (NGX_HTTP_GET | NGX_HTTP_HEAD))) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -77,4 +79,33 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
     out.next = NULL;
 
     return ngx_http_output_filter(r, &out);
+}
+*/
+
+// 发送文件
+static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
+    if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
+        return NGX_HTTP_NOT_ALLOWED;
+    }
+
+    ngx_int_t rc = ngx_http_discard_request_body(r);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    ngx_buf_t *b;
+    b = ngx_palloc(r->pool, sizeof(ngx_buf_t));
+
+    u_char *filename = (u_char*)"/tmp/test.txt";
+    b->in_file = 1;
+    b->file = ngx_pcalloc(r->pool, sizeof(ngx_file_t));
+    b->file->fd = ngx_open_file(filename, NGX_FILE_RDONLY | NGX_FILE_NONBLOCK,
+                                NGX_FILE_OPEN, 0);
+    b->file->log = r->connection->log;
+    b->file->name.data = filename;
+    b->file->name.len = sizeof(filename) - 1;
+    if (b->file->fd <= 0) {
+        return NGX_HTTP_NOT_FOUND;
+    }
+
 }
