@@ -77,6 +77,46 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
             if (0 == ngx_strncmp(header[i].value.data,
                                  "test", header[i].value.len)) {
                 // 处理代码
+                // 发送自定义HTTP头部 start
+                // 丢弃包体
+                ngx_http_discard_request_body(r);
+                ngx_table_elt_t* h = ngx_list_push(&r->headers_out.headers);
+                if (h == NULL) {
+                    return NGX_ERROR;
+                }
+                h->hash = 1;
+                h->key.len = sizeof("TestHeader") -1;
+                h->key.data = (u_char*)"TestHeader";
+                h->value.len = sizeof("TestValue") - 1;
+                h->value.data = (u_char*) "TestValue";
+
+                ngx_str_t type = ngx_string("text/plain");
+                ngx_str_t response = ngx_string("Return myself Header!");
+                r->headers_out.status = NGX_HTTP_OK;
+                r->headers_out.content_length_n = response.len;
+                r->headers_out.content_type = type;
+
+                ngx_int_t rc = ngx_http_send_header(r);
+                // 如果发送的是一个不含有HTTP包体的响应，此时就可以直接return rc;
+                if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+                    return rc;
+                }
+                ngx_buf_t *b;
+                // ngx_create_temp_buf是一个宏，用于从nginx的内存池中分配ngx_buf_t结构体
+                b = ngx_create_temp_buf(r->pool, response.len);
+                if (b == NULL) {
+                    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+                }
+
+                ngx_memcpy(b->pos, response.data, response.len);
+                // 需要设置b->last的值， 如果b->last == b->pos， http框架是不会发送一个字节的包体的
+                b->last = b->pos + response.len;
+                b->last_buf = 1;
+                ngx_chain_t out;
+                out.buf = b;
+                out.next = NULL;
+                // 发送包体，并返回
+                return ngx_http_output_filter(r, &out);
             }
         }
     }
