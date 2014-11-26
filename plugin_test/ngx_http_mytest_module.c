@@ -38,8 +38,14 @@ ngx_module_t ngx_http_mytest_module = {
 static char* ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_core_loc_conf_t *clcf;
 
+    // 找到mytest配置项所属的配置块，clcf可以是main,srv,loc级别配置项，即
+    // 在每个http{}, server{}内都有一个ngx_http_core_loc_conf_t结构体
     clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
+
+    // http框架在处理用户请求进行到NGX_HTTP_CONTENT_PHASE阶段时，如果请求的主机
+    // 域名，URI与mytest配置项所在的配置块相匹配，就调用该方法
     clcf->handler = ngx_http_mytest_handler;
+    
     return NGX_CONF_OK;
 }
 
