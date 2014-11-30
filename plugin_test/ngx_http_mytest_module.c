@@ -103,9 +103,40 @@ static ngx_int_t ngx_http_mytest_handler(ngx_http_request_t *r) {
                                 NGX_FILE_OPEN, 0);
     b->file->log = r->connection->log;
     b->file->name.data = filename;
-    b->file->name.len = sizeof(filename) - 1;
+    //b->file->name.len = strlen(filename); //无法通过编译
+    b->file->name.len = strlen("/tmp/test.txt");
     if (b->file->fd <= 0) {
         return NGX_HTTP_NOT_FOUND;
     }
+    // 设置支持断点续传
+    r->allow_ranges = 1;
+    // 获取文件长度
+    if (ngx_file_info(filename, &b->file->info) == NGX_FILE_ERROR) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    // 设置缓冲区指向的文件块
+    b->file_pos = 0;
+    b->file_last = b->file->info.st_size;
+    ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_pool_cleanup_file_t));
+    if (cln == NULL) {
+        return NGX_ERROR;
+    }
+    cln->handler = ngx_pool_cleanup_file;
+    ngx_pool_cleanup_file_t *clnf = cln->data;
+    clnf->fd = b->file->fd;
+    clnf->name = b->file->name.data;
+    clnf->log = r->pool->log;
 
+    ngx_str_t type = ngx_string("text/plain");
+    r->headers_out.status = NGX_HTTP_OK;
+    r->headers_out.content_length_n = b->file->info.st_size;
+    r->headers_out.content_type = type;
+    rc = ngx_http_send_header(r);
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
+    ngx_chain_t out;
+    out.buf = b;
+    out.next = NULL;
+    return ngx_http_output_filter(r, &out);
 }
