@@ -1,2 +1,5 @@
 nginx-1.6.2/Makefile
 nginx-1.6.2/objs/*
+plugin_test/GPATH
+plugin_test/GRTAGS
+plugin_test/GTAGS
