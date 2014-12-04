@@ -179,11 +179,65 @@ static ngx_command_t ngx_http_mytest_commands[] = {
 
 };
 
+static ngx_http_module_t  ngx_http_mytest_module_ctx =
+{
+    NULL,                              /* preconfiguration */
+    ngx_http_mytest_post_conf,      /* postconfiguration */
+
+    NULL,                              /* create main configuration */
+    NULL,                              /* init main configuration */
+
+    NULL,                              /* create server configuration */
+    NULL,                              /* merge server configuration */
+
+    ngx_http_mytest_create_loc_conf, /* create location configuration */
+    ngx_http_mytest_merge_loc_conf   /* merge location configuration */
+};
+
+ngx_module_t  ngx_http_mytest_module =
+{
+    NGX_MODULE_V1,
+    &ngx_http_mytest_module_ctx,           /* module context */
+    ngx_http_mytest_commands,              /* module directives */
+    NGX_HTTP_MODULE,                       /* module type */
+    NULL,                                  /* init master */
+    NULL,                                  /* init module */
+    NULL,                                  /* init process */
+    NULL,                                  /* init thread */
+    NULL,                                  /* exit thread */
+    NULL,                                  /* exit process */
+    NULL,                                  /* exit master */
+    NGX_MODULE_V1_PADDING
+};
+
+static char* ngx_http_mytest_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child) {
+    ngx_http_mytest_conf_t *prev = (ngx_http_mytest_conf_t *)parent;
+    ngx_http_mytest_conf_t *conf = (ngx_http_mytest_conf_t *)child;
+    // 此处可以使用nginx定义的10个配置项合并方法。（P139）
+    ngx_conf_merge_str_value(conf->my_str, prev->my_str, "defaultstr"); // 配置项合并
+    ngx_conf_merge_value(conf->my_flag, prev->my_flag, 0);
+    return NGX_CONF_OK;
+}
+
 static char* ngx_conf_set_myconfig(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     // 参数conf就是http框架传给我们的，在ngx_http_mytest_create_loc_conf回调方法中
     // 分配的结构体体ngx_http_mytest_conf_t
     // void* 赋值给任何指针都不需要强制转换
     ngx_http_mytest_conf_t *mycf = conf;
+
+    // cf->args是一个ngx_array_t队列，它的成员都是ngx_str_t结构，我们用value指向ngx_array_t
+    // 的elts内容，其中value[1]就是第一个参数，value[2]就是第二参数，value[0]是什么意思？
+    ngx_str_t *value = cf->args->elts;
+    if (cf->args->nelts > 1) {
+        mycf->my_config_str = value[1];
+    }
+    if (cf->args->nelts > 2) {
+        mycf->my_config_num = ngx_atoi(value[2].data, value[2].len);
+        if (mycf->my_config_num == NGX_ERROR) { // 转换失败
+            return "invalid number";
+        }
+    }
+    return NGX_CONF_OK; // 处理成功，返回
 }
 
 static void *ngx_http_mytest_create_loc_conf(ngx_conf_t *cf) {
