@@ -6,40 +6,60 @@ static void* ngx_http_mytest_create_loc_conf(ngx_conf_t *cf);
 
 static char* ngx_conf_set_myconfig(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
+static char* ngx_http_mytest_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child);
+
+ngx_int_t ngx_http_mytest_post_conf(ngx_conf_t *cf);
+
 typedef struct {
     // 以下14个定义使用Nginx预定义的方法
-    ngx_str_t   	my_str;
-    ngx_int_t   	my_num;
-    ngx_flag_t   	my_flag;
-    size_t		my_size;
-    ngx_array_t*  	my_str_array;
-    ngx_array_t*  	my_keyval;
-    off_t   	my_off;
-    ngx_msec_t   	my_msec;
-    time_t   	my_sec;
-    ngx_bufs_t   	my_bufs;
-    ngx_uint_t   	my_enum_seq;
-    ngx_uint_t	my_bitmask;
-    ngx_uint_t   	my_access;
-    ngx_path_t*	my_path;
+    ngx_str_t    my_str;
+    ngx_int_t    my_num;
+    ngx_flag_t   my_flag;
+    size_t       my_size;
+    ngx_array_t* my_str_array;
+    ngx_array_t* my_keyval;
+    off_t        my_off;
+    ngx_msec_t   my_msec;
+    time_t       my_sec;
+    ngx_bufs_t   my_bufs;
+    ngx_uint_t   my_enum_seq;
+    ngx_uint_t   my_bitmask;
+    ngx_uint_t   my_access;
+    ngx_path_t*  my_path;
 
     // 使用自定义的方法处理参数
-    ngx_str_t		my_config_str;
-    ngx_int_t		my_config_num;
+    ngx_str_t my_config_str;
+    ngx_int_t my_config_num;
 } ngx_http_mytest_conf_t;
 
 static ngx_conf_enum_t test_enums[] = {
-    {ngx_string("apple"), 1},
-    {ngx_string("banana"), 2},
-    {ngx_string("orange"), 3},
-    {ngx_null_string, 0}
+    {
+        ngx_string("apple"), 1
+    },
+    {
+        ngx_string("banana"), 2
+    },
+    {
+        ngx_string("orange"), 3
+    },
+    {
+        ngx_null_string, 0
+    }
 };
 
 static ngx_conf_bitmask_t test_bitmasks[] = {
-    {ngx_string("good"), 0x0002},
-    {ngx_string("better"), 0x0004},
-    {ngx_string("best"), 0x0008},
-    {ngx_null_string, 0}
+    {
+        ngx_string("good"), 0x0002
+    },
+    {
+        ngx_string("better"), 0x0004
+    },
+    {
+        ngx_string("best"), 0x0008
+    },
+    {
+        ngx_null_string, 0
+    }
 };
 
 static ngx_command_t ngx_http_mytest_commands[] = {
@@ -54,7 +74,7 @@ static ngx_command_t ngx_http_mytest_commands[] = {
 
     {
         ngx_string("test_str"),
-        NGX_HTTP_LOC_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+        NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
         ngx_conf_set_str_slot,
         NGX_HTTP_LOC_CONF_OFFSET,
         offsetof(ngx_http_mytest_conf_t, my_str),
@@ -174,9 +194,7 @@ static ngx_command_t ngx_http_mytest_commands[] = {
         NULL
     },
 
-
     ngx_null_command
-
 };
 
 static ngx_http_module_t  ngx_http_mytest_module_ctx =
@@ -237,6 +255,17 @@ static char* ngx_conf_set_myconfig(ngx_conf_t *cf, ngx_command_t *cmd, void *con
             return "invalid number";
         }
     }
+
+    // 输出日志
+    long tl = 4900000000;
+    u_long tul = 5000000000;
+    int32_t ti32 = 110;
+    ngx_str_t tstr = ngx_string("teststr");
+    double tdoub = 3.1415926535897932;
+    int x = 15;
+    ngx_log_error(NGX_LOG_ALERT, cf->log, 0, "l=%l, ul=%ul, D=%D, p=%p, f=%.10f, str=%V,\
+                  x=%xd, X=%Xd", tl, tul, ti32, &ti32, tdoub, &tstr, x, x);
+
     return NGX_CONF_OK; // 处理成功，返回
 }
 
@@ -258,4 +287,51 @@ static void *ngx_http_mytest_create_loc_conf(ngx_conf_t *cf) {
     mycf->my_size = NGX_CONF_UNSET_SIZE;
 
     return mycf;
+}
+
+// for test
+extern ngx_module_t ngx_http_module;
+extern ngx_module_t ngx_http_core_module;
+
+// 遍历location内的test_str字段
+void traversal(ngx_conf_t *cf, ngx_http_location_tree_node_t* node) {
+    if (node != NULL) {
+        traversal(cf, node->left);
+        ngx_http_core_loc_conf_t* loc = NULL;
+        if (node->exact != NULL) {
+            loc = (ngx_http_core_loc_conf_t*)node->exact;
+        } else if (node->inclusive != NULL) {
+            loc = (ngx_http_core_loc_conf_t*)node->inclusive;
+        }
+
+        if (loc != NULL) {
+            ngx_http_mytest_conf_t *mycf = (ngx_http_mytest_conf_t *)loc->loc_conf[ngx_http_mytest_module.ctx_index];
+            ngx_log_error(NGX_LOG_ALERT, cf->log, 0, "in location[name=%V]{} test_str=%V",
+                          &loc->name, &mycf->my_str);
+        } else {
+            ngx_log_error(NGX_LOG_ALERT, cf->log, 0, "wrong location tree");
+        }
+        traversal(cf, node->right);
+    }
+}
+
+ngx_int_t ngx_http_mytest_post_conf(ngx_conf_t *cf) {
+    ngx_uint_t i = 0;
+    ngx_http_conf_ctx_t *http_root_conf = (ngx_http_conf_ctx_t*)ngx_get_conf(cf->cycle->conf_ctx,ngx_http_module);
+    ngx_http_mytest_conf_t *mycf;
+    mycf = (ngx_http_mytest_conf_t*)http_root_conf->loc_conf[ngx_http_mytest_module.ctx_index];
+    ngx_log_error(NGX_LOG_ALERT, cf->log, 0, "in http{} test_str=%v", &mycf->my_str);
+    ngx_http_core_main_conf_t *core_main_conf = (ngx_http_core_main_conf_t*)
+        http_root_conf->main_conf[ngx_http_core_module.ctx_index];
+    for (i = 0; i < core_main_conf->servers.nelts; ++i) {
+        ngx_http_core_srv_conf_t* tmpcoresrv = *((ngx_http_core_srv_conf_t**)
+                                                 (core_main_conf->servers.elts)+i);
+        mycf = (ngx_http_mytest_conf_t *)tmpcoresrv->ctx->loc_conf[ngx_http_mytest_module.ctx_index];
+        ngx_log_error(NGX_LOG_ALERT, cf->log, 0, "in server[name=%V]{} test_str=%V",
+                      &tmpcoresrv->server_name, &mycf->my_str);
+        ngx_http_core_loc_conf_t* tmpcoreloc = (ngx_http_core_loc_conf_t*)
+            tmpcoresrv->ctx->loc_conf[ngx_http_core_module.ctx_index];
+        traversal(cf, tmpcoreloc->static_locations);
+    }
+    return NGX_OK;
 }
